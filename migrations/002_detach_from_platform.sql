@@ -11,6 +11,42 @@
 --
 -- Written to be safe to run twice.
 
+/*
+  Drop the old foreign keys FIRST.
+
+  Everything below rewrites server_id from a platform servers.id to a
+  gq_servers.id. Those new values do not exist in `servers`, so with the old
+  constraints still in place the very first UPDATE is rejected:
+
+    insert or update on table "server_player_samples" violates foreign key
+    constraint "server_player_samples_server_id_fkey"
+
+  Dropping by lookup rather than by name because the constraint names differ
+  between an installation created by the platform's init scripts and one
+  created by this migration.
+*/
+DO $do$
+DECLARE
+    spec RECORD;
+BEGIN
+    FOR spec IN
+        SELECT con.conname, rel.relname AS table_name
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_class ref ON ref.oid = con.confrelid
+        WHERE con.contype = 'f'
+          AND ref.relname = 'servers'
+          AND rel.relname IN (
+              'server_player_samples',
+              'server_player_hourly',
+              'discord_tracked_servers'
+          )
+    LOOP
+        EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', spec.table_name, spec.conname);
+    END LOOP;
+END
+$do$;
+
 -- Carry across any address the bot already tracked, and any address that
 -- already has history, so no graph loses its past.
 INSERT INTO gq_servers (game, address)
@@ -63,27 +99,9 @@ WHERE NOT EXISTS (SELECT 1 FROM gq_servers g WHERE g.id = sp.server_id);
 DELETE FROM server_player_hourly sh
 WHERE NOT EXISTS (SELECT 1 FROM gq_servers g WHERE g.id = sh.server_id);
 
--- Repoint the constraints themselves.
+-- Add the new constraints, now that every row points at a gq_servers id.
 DO $do$
-DECLARE
-    spec RECORD;
 BEGIN
-    FOR spec IN
-        SELECT con.conname, rel.relname AS table_name
-        FROM pg_constraint con
-        JOIN pg_class rel ON rel.oid = con.conrelid
-        JOIN pg_class ref ON ref.oid = con.confrelid
-        WHERE con.contype = 'f'
-          AND ref.relname = 'servers'
-          AND rel.relname IN (
-              'server_player_samples',
-              'server_player_hourly',
-              'discord_tracked_servers'
-          )
-    LOOP
-        EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', spec.table_name, spec.conname);
-    END LOOP;
-
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'server_player_samples_server_fk'
     ) THEN
@@ -116,6 +134,13 @@ ALTER TABLE discord_tracked_servers ADD COLUMN IF NOT EXISTS sort_order INTEGER 
 ALTER TABLE discord_counter_channels ADD COLUMN IF NOT EXISTS server_group VARCHAR(60);
 ALTER TABLE discord_status_messages ADD COLUMN IF NOT EXISTS server_group VARCHAR(60);
 ALTER TABLE discord_guilds ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'UTC';
+
+-- Indexes on the columns just added. They live here rather than in 001 because
+-- 001 also runs against installations where these columns do not yet exist.
+CREATE INDEX IF NOT EXISTS idx_discord_tracked_servers_group
+    ON discord_tracked_servers (guild_id, server_group) WHERE server_group IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_discord_tracked_servers_sort
+    ON discord_tracked_servers (guild_id, sort_order, created_at);
 
 -- last_state holds a hashed map fingerprint, which needs more than 32 chars.
 ALTER TABLE discord_alerts ALTER COLUMN last_state TYPE VARCHAR(64);

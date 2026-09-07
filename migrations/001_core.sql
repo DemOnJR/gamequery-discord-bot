@@ -93,12 +93,18 @@ CREATE TABLE IF NOT EXISTS discord_tracked_servers (
     CONSTRAINT discord_tracked_servers_unique UNIQUE (guild_id, address)
 );
 
+/*
+  Indexes here may only reference columns this file itself guarantees.
+
+  CREATE TABLE IF NOT EXISTS is a no-op against an existing installation, so an
+  index naming a column added in a later migration fails on every upgrade while
+  passing on a fresh database. The sort_order and server_group indexes are
+  created in 002, after the columns are added.
+*/
 CREATE INDEX IF NOT EXISTS idx_discord_tracked_servers_guild
-    ON discord_tracked_servers (guild_id, sort_order, created_at);
+    ON discord_tracked_servers (guild_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_discord_tracked_servers_server
     ON discord_tracked_servers (server_id) WHERE server_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_discord_tracked_servers_group
-    ON discord_tracked_servers (guild_id, server_group) WHERE server_group IS NOT NULL;
 
 -- Counter channels -----------------------------------------------------------
 
