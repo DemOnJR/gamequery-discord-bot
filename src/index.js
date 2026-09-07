@@ -279,12 +279,13 @@ async function main() {
     process.exit(1);
   }
 
+  /*
+    The bundled catalogue is a starting point, not a requirement: the API is
+    refreshed from below and is the authority. Failing here would make a clone
+    without data/games.json unable to start even though the API could supply
+    the whole list a second later.
+  */
   games.load();
-
-  if (games.count() === 0) {
-    console.error('[bot] the games catalogue is empty; /server and /track would reject every input. Refusing to start.');
-    process.exit(1);
-  }
 
   chart.registerFonts();
 
@@ -334,6 +335,13 @@ async function main() {
     console.log(`[bot] games catalogue: ${games.replace(live)} entries`);
   } catch (error) {
     console.warn(`[bot] could not refresh the games catalogue, using the bundled copy: ${error.message}`);
+  }
+
+  // Only now is an empty catalogue fatal: both the bundled copy and the API
+  // failed, so /server and /track would reject every input.
+  if (games.count() === 0) {
+    console.error('[bot] no games catalogue from the bundled copy or the API. Refusing to start.');
+    process.exit(1);
   }
 
   startHealthServer();

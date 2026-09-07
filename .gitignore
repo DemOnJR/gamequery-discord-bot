@@ -6,8 +6,11 @@ npm-debug.log*
 .env.*
 !.env.example
 
-# Fetched from the API at build or run time; the bot also refreshes it at boot.
-data/
+# The bundled game catalogue IS committed: the Dockerfile copies it and a clone
+# without it does not build. The bot refreshes it from the API at boot anyway,
+# so the committed copy is only a starting point and a fallback.
+data/*
+!data/games.json
 
 *.log
 .DS_Store
