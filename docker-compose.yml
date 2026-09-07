@@ -1,0 +1,46 @@
+# Runs the bot and a Postgres for it.
+#
+#   cp .env.example .env   # fill in the four required values
+#   docker compose up -d
+#
+# Already have a Postgres? Set DATABASE_URL in .env and run:
+#   docker compose up -d bot
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gamequery
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: gamequery_bot
+    volumes:
+      - bot-db:/var/lib/postgresql/data
+    healthcheck:
+      # The bot creates its own schema at boot, so it only has to wait for
+      # Postgres to accept connections.
+      test: ["CMD-SHELL", "pg_isready -U gamequery -d gamequery_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://gamequery:${POSTGRES_PASSWORD:-changeme}@postgres:5432/gamequery_bot}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Reports the Discord gateway connection, not just the process: a bot
+      # that lost its websocket still has a healthy PID.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  bot-db:

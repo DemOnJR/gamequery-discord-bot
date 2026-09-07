@@ -1,0 +1,21 @@
+{
+  "name": "gamequery-discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GameQuery Discord bot: live game server status, player graphs and auto-updating channel counters.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/registerCommands.js",
+    "check": "node --check src/index.js && node scripts/selfcheck.js"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
+    "discord.js": "^14.16.3",
+    "pg": "^8.13.1",
+    "redis": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
