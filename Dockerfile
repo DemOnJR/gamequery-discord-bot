@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:26-alpine
 
 # DejaVu is what the chart renderer draws its labels with. @napi-rs/canvas ships
 # prebuilt binaries but no fonts, and a missing font produces a valid PNG with
